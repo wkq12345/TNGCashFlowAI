@@ -4,31 +4,16 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Models\Budget;
 use App\Models\Transaction;
+use App\Http\Controllers\BudgetController;
 
 Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
     return $request->user();
 });
 
-// Phase 1 API Endpoints (Hardcoded user_id = 1 for Hackathon MVP)
+// Phase 1 API Endpoints (Hardcoded user_id = 1 )
 
 // 1. Budget Endpoints
-Route::post('/budgets', function (Request $request) {
-    $validated = $request->validate([
-        'monthly_target' => 'required|numeric',
-        'daily_target' => 'required|numeric',
-        'month_year' => 'required|string|size:7'
-    ]);
-
-    $budget = Budget::updateOrCreate(
-        ['user_id' => 1, 'month_year' => $validated['month_year']],
-        [
-            'monthly_target' => $validated['monthly_target'],
-            'daily_target' => $validated['daily_target']
-        ]
-    );
-
-    return response()->json(['message' => 'Budget saved', 'data' => $budget], 201);
-});
+Route::post('/budgets', [BudgetController::class, 'setBudget']);
 
 // 2. Transaction Endpoints
 Route::post('/transactions', function (Request $request) {

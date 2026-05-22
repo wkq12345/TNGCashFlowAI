@@ -14,9 +14,9 @@ return new class extends Migration
         Schema::create('budgets', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->decimal('daily_target', 8, 2);
-            $table->decimal('weekly_target', 8, 2);
-            $table->decimal('monthly_target', 8, 2);
+            $table->decimal('daily_target', 8, 2)->nullable();
+            $table->decimal('weekly_target', 8, 2)->nullable();
+            $table->decimal('monthly_target', 8, 2)->nullable();
             $table->string('month_year', 7); // Format: YYYY-MM
             $table->timestamps();
         });
