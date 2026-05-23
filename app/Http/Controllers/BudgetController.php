@@ -18,18 +18,35 @@ class BudgetController extends Controller
             'month_year' => 'required|string|size:7', // Format: YYYY-MM
         ]);
 
-        // Bypass auth for hardcoded hackathon MVP
+        // Bypass auth for hardcoded
         $userId = 1;
 
-        $budget = Budget::updateOrCreate(
-            ['user_id' => $userId, 'month_year' => $request->month_year],
+        $budget = Budget::firstOrNew(
             [
-                'daily_target' => $request->daily_target,
-                'weekly_target' => $request->weekly_target,
-                'monthly_target' => $request->monthly_target,
+                'user_id' => $userId,
+                'month_year' => $request->input('month_year')
             ]
         );
 
+        if ($request->filled('daily_target')) {
+            $budget->daily_target = $request->input('daily_target');
+        }
+        if ($request->filled('weekly_target')) {
+            $budget->weekly_target = $request->input('weekly_target');
+        }
+        if ($request->filled('monthly_target')) {
+            $budget->monthly_target = $request->input('monthly_target');
+        }
+
+        $budget->save();
+
         return response()->json(['message' => 'Budget set successfully', 'budget' => $budget]);
+    }
+
+    // Return budget history for the hardcoded user
+    public function index(Request $request)
+    {
+        $budgets = Budget::where('user_id', 1)->orderBy('month_year', 'desc')->get();
+        return response()->json(['data' => $budgets]);
     }
 }

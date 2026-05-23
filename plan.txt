@@ -1,0 +1,46 @@
+## Plan: Llama-first notification parsing
+
+Move the TNG eWallet notification pipeline to an LLM-first extractor with regex as the deterministic fallback and repair path. The extracted result must map cleanly into the existing transactions table shape, but the app will keep a spending-only interpretation so the dashboard totals and history remain expense-focused and comparable consistently.
+
+**Steps**
+1. Define the parsing contract for TNG notifications in [c:\TNGCashFlowAIMobile\lib\services\notification_service.dart]. Treat Llama as the primary extractor for the exact transaction-table fields that can be inferred from notifications: `amount`, `merchant`, `category` when possible, `source`, `transaction_date`, `raw_text`, and `dedupe_hash` generation context. Keep `user_id` server-side and preserve the dashboard-facing fields `merchant`, `category`, `amount`, and `transaction_date` exactly as the history UI expects. Ignore non-spending notification types rather than saving them.
+2. Replace the current single regex pair with a small set of template-specific patterns for the observed message families: incoming money, transfer successful, received money, DuitNow payment, and merchant deduction. Normalize whitespace, punctuation, and casing first, then classify the message family and extract amount plus counterparty or merchant separately.
+3. Add a merge rule between LLM and regex results. Prefer the LLM parse when it produces a complete, valid transaction-shaped object; use regex to fill gaps, repair malformed fields, or extract a consistent merchant/amount pair when the LLM output is incomplete. Do not use regex as the only gate unless the LLM path is unavailable or unusable.
+4. Align the save payload with the transactions table in [c:\TNGCashFlowAI\database\migrations\2026_05_23_120000_add_raw_and_dedupe_to_transactions.php] and [c:\TNGCashFlowAI\app\Models\Transaction.php]. Store `category_id` in the transaction record, keep `merchant`, `amount`, `source`, `transaction_date`, `raw_text`, and `dedupe_hash` intact, and resolve `categories.name` when the dashboard reads `recent_transactions`.
+5. Keep the backend LLM proxy as the shared extraction path by reusing [c:\TNGCashFlowAI\app\Http\Controllers\LlmController.php] and [c:\TNGCashFlowAI\routes\api.php]. Tighten the prompt so it explicitly asks for one JSON object that matches the transaction schema and includes enough detail to identify the spending merchant, amount, and transaction context when the notification wording allows it.
+6. Update the dashboard flow in [c:\TNGCashFlowAIMobile\lib\screens\dashboard_screen.dart] and [c:\TNGCashFlowAI\app\Http\Controllers\ReportController.php] only as needed to ensure the recent transaction history resolves `category_id` to the category name, reflects the saved records accurately, and remains suitable for expense comparison without losing the underlying transaction data.
+7. Add or update focused tests around the parser behavior. Cover each sample format, especially cases where merchant appears before amount, amount appears before merchant, or the notification contains extra reference-number text. Include at least one test proving the LLM-first, regex-second precedence.
+8. Verify the end-to-end flow against the local Laravel API. Confirm that a parsed notification still reaches transaction saving with the dedupe hash and raw text intact, and that the dashboard history section renders the same table-aligned values used for totals and comparisons.
+
+**Relevant files**
+- [c:\TNGCashFlowAIMobile\lib\services\notification_service.dart] — owns notification handling, parsing order, and save orchestration.
+- [c:\TNGCashFlowAIMobile\lib\services\api_service.dart] — sends parsed transactions to Laravel.
+- [c:\TNGCashFlowAIMobile\lib\screens\dashboard_screen.dart] — renders `recent_transactions` in the history section.
+- [c:\TNGCashFlowAIMobile\lib\widgets\transactions_list_tile.dart] — formats the displayed category name and amount in the history row.
+- [c:\TNGCashFlowAI\app\Http\Controllers\CategoryController.php] — provides category records whose `name` should be resolved from `category_id`.
+- [c:\TNGCashFlowAI\app\Http\Controllers\LlmController.php] — proxy that normalizes prompt/chat payloads and extracts JSON from LLM output.
+- [c:\TNGCashFlowAI\routes\api.php] — exposes the `/llm/parse` endpoint and transaction save endpoint.
+- [c:\TNGCashFlowAI\app\Models\Transaction.php] — authoritative table-backed field list used for persistence.
+- [c:\TNGCashFlowAI\database\migrations\2026_05_23_120000_add_raw_and_dedupe_to_transactions.php] — adds `raw_text` and `dedupe_hash` for traceability and dedupe.
+- [c:\TNGCashFlowAI\app\Http\Controllers\ReportController.php] — supplies dashboard totals and recent transaction history.
+
+**Verification**
+1. Run a narrow analysis or parser-focused test pass after the implementation lands.
+2. Exercise the five sample notification strings and confirm each maps into the transaction fields the dashboard uses: `merchant`, `amount`, `category_id`/category name, and `transaction_date`.
+3. Confirm the saved transaction payload includes `raw_text` and `dedupe_hash`, and that duplicate notifications are still ignored with a stable raw-text-based dedupe key.
+4. Validate the dashboard recent-transactions section shows the saved entries with the same values the report API returns.
+5. Check the report totals remain consistent with the transaction history so expense comparison is based on the same persisted records.
+
+**Decisions**
+- Scope is TNG eWallet notifications only.
+- Llama should run first; regex is the fallback/repair path, not the primary gate.
+- The extracted payload must remain table-aligned so the dashboard can use it without a separate translation layer.
+- No broad provider-agnostic parser is included in this iteration.
+- Normalize notification text before any parsing or comparison.
+- Ignore non-spending notifications instead of saving them.
+- Keep raw-text-based dedupe behavior stable.
+
+**Further Considerations**
+1. Keep the reporting model expense-only; do not add transaction direction semantics in this iteration.
+2. Decide whether to keep parsing in `NotificationService` or extract a dedicated parser helper so the regex/LLM logic is easier to test independently.
+3. If LLM latency becomes a problem, consider a light pre-classifier to avoid unnecessary LLM calls for clearly structured messages.
