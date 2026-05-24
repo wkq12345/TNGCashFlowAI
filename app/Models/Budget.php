@@ -14,6 +14,11 @@ class Budget extends Model
         'weekly_target',
         'daily_target',
         'month_year',
+        'alarm_config',
+    ];
+
+    protected $casts = [
+        'alarm_config' => 'array',
     ];
 
     public function user()

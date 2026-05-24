@@ -23,7 +23,7 @@ class LlmController extends Controller
             $payload = $body;
             if (isset($body['prompt']) && ! isset($body['messages'])) {
                 $payload = [
-                    'model' => $body['model'] ?? 'meta-llama/llama-3.2-3b-instruct:free',
+                    'model' => $body['model'] ?? 'google/gemma-3-4b-it:free',
                     'messages' => [
                         [
                             'role' => 'user',
@@ -35,14 +35,29 @@ class LlmController extends Controller
                 ];
             }
 
+            //change
             $headers = [
                 'Content-Type' => 'application/json',
+                'HTTP-Referer' => 'http://localhost',
+                'X-Title' => 'Financial Tracker App',
             ];
             if ($llmKey) {
                 $headers['Authorization'] = 'Bearer ' . $llmKey;
             }
 
+            //change 2
+            \Log::info('LLM REQUEST', [
+                'endpoint' => $llmEndpoint,
+                'payload' => $payload,
+            ]);
+
             $resp = Http::withHeaders($headers)->post($llmEndpoint, $payload);
+
+
+            \Log::info('LLM RESPONSE', [
+                'status' => $resp->status(),
+                'body' => $resp->body(),
+            ]);
 
             if (! $resp->successful()) {
                 return response()->json(['error' => 'LLM request failed', 'status' => $resp->status(), 'body' => $resp->body()], 502);

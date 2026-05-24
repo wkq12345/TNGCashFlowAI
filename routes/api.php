@@ -17,6 +17,7 @@ Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
 
 // 1. Budget Endpoints
 Route::post('/budgets', [BudgetController::class, 'setBudget']);
+Route::post('/budgets/alarm-state', [BudgetController::class, 'updateAlarmState']);
 
 // 2. Transaction Endpoints
 Route::post('/transactions', [TransactionsController::class, 'store']);
